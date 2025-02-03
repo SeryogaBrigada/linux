@@ -164,8 +164,21 @@ void amdgpu_ring_commit(struct amdgpu_ring *ring)
 	if (count != 0)
 		ring->funcs->insert_nop(ring, count);
 
+	/* PG state change is necessary for Compute before ringing doorbell */
+	bool need_pg_change = AMDGPU_RING_TYPE_COMPUTE == ring->funcs->type;
+
+	if (need_pg_change) {
+		amdgpu_device_ip_set_powergating_state(
+			ring->adev, AMD_IP_BLOCK_TYPE_GFX, AMD_PG_STATE_UNGATE);
+	}
+
 	mb();
 	amdgpu_ring_set_wptr(ring);
+
+	if (need_pg_change) {
+		amdgpu_device_ip_set_powergating_state(
+			ring->adev, AMD_IP_BLOCK_TYPE_GFX, AMD_PG_STATE_GATE);
+	}
 
 	if (ring->funcs->end_use)
 		ring->funcs->end_use(ring);
