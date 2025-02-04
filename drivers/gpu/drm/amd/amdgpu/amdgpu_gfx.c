@@ -34,8 +34,8 @@
 #include "amdgpu_xcp.h"
 #include "amdgpu_xgmi.h"
 
-/* delay 0.1 second to enable gfx off feature */
-#define GFX_OFF_DELAY_ENABLE         msecs_to_jiffies(100)
+/* delay 10ms to enable gfx off feature */
+#define GFX_OFF_DELAY_ENABLE         msecs_to_jiffies(10)
 
 #define GFX_OFF_NO_DELAY 0
 
