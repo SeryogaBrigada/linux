@@ -160,8 +160,8 @@ fallback:
 bool amdgpu_vmid_had_gpu_reset(struct amdgpu_device *adev,
 			       struct amdgpu_vmid *id)
 {
-	return id->current_gpu_reset_count !=
-		atomic_read(&adev->gpu_reset_counter);
+	return atomic_read(&id->current_gpu_reset_count) !=
+	       atomic_read(&adev->gpu_reset_counter);
 }
 
 /* Check if we need to switch to another set of resources */

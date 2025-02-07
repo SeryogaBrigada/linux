@@ -49,7 +49,7 @@ struct amdgpu_vmid {
 	/* last flushed PD/PT update */
 	uint64_t		flushed_updates;
 
-	uint32_t                current_gpu_reset_count;
+	atomic_t		current_gpu_reset_count;
 
 	uint32_t		gds_base;
 	uint32_t		gds_size;

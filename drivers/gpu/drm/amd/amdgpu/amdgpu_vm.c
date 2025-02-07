@@ -719,8 +719,8 @@ int amdgpu_vm_flush(struct amdgpu_ring *ring, struct amdgpu_job *job,
 		if (vm_flush_needed) {
 			dma_fence_put(id->last_flush);
 			id->last_flush = dma_fence_get(fence);
-			id->current_gpu_reset_count =
-				atomic_read(&adev->gpu_reset_counter);
+			atomic_set(&id->current_gpu_reset_count,
+				   atomic_read(&adev->gpu_reset_counter));
 		}
 
 		if (pasid_mapping_needed) {
