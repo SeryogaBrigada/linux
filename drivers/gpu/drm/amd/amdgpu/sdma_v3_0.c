@@ -1028,7 +1028,7 @@ static void sdma_v3_0_ring_pad_ib(struct amdgpu_ring *ring, struct amdgpu_ib *ib
  */
 static void sdma_v3_0_ring_emit_pipeline_sync(struct amdgpu_ring *ring)
 {
-	uint32_t seq = ring->fence_drv.sync_seq;
+	uint32_t seq = atomic_read(&ring->fence_drv.sync_seq);
 	uint64_t addr = ring->fence_drv.gpu_addr;
 
 	/* wait for idle */

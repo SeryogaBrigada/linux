@@ -114,8 +114,7 @@ struct amdgpu_sched {
 struct amdgpu_fence_driver {
 	uint64_t			gpu_addr;
 	volatile uint32_t		*cpu_addr;
-	/* sync_seq is protected by ring emission lock */
-	uint32_t			sync_seq;
+	atomic_t			sync_seq;
 	atomic_t			last_seq;
 	bool				initialized;
 	struct amdgpu_irq_src		*irq_src;

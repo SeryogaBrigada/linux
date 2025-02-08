@@ -1818,7 +1818,7 @@ static void amdgpu_ib_preempt_fences_swap(struct amdgpu_ring *ring,
 	uint32_t sync_seq, last_seq;
 
 	last_seq = atomic_read(&ring->fence_drv.last_seq);
-	sync_seq = ring->fence_drv.sync_seq;
+	sync_seq = atomic_read(&ring->fence_drv.sync_seq);
 
 	last_seq &= drv->num_fences_mask;
 	sync_seq &= drv->num_fences_mask;
@@ -1952,7 +1952,7 @@ static int amdgpu_debugfs_ib_preempt(void *data, u64 val)
 	amdgpu_fence_process(ring);
 
 	if (atomic_read(&ring->fence_drv.last_seq) !=
-	    ring->fence_drv.sync_seq) {
+	    atomic_read(&ring->fence_drv.sync_seq)) {
 		DRM_INFO("ring %d was preempted\n", ring->idx);
 
 		amdgpu_ib_preempt_mark_partial_job(ring);

@@ -533,7 +533,7 @@ void amdgpu_ring_mux_end_ib(struct amdgpu_ring_mux *mux, struct amdgpu_ring *rin
 	}
 
 	chunk->end = ring->wptr;
-	chunk->sync_seq = READ_ONCE(ring->fence_drv.sync_seq);
+	chunk->sync_seq = atomic_read(&ring->fence_drv.sync_seq);
 
 	scan_and_remove_signaled_chunk(mux, ring);
 }
@@ -566,7 +566,7 @@ bool amdgpu_mcbp_handle_trailing_fence_irq(struct amdgpu_ring_mux *mux)
 	amdgpu_fence_process(ring);
 	if (amdgpu_fence_count_emitted(ring) > 0) {
 		mux->s_resubmit = true;
-		mux->seqno_to_resubmit = ring->fence_drv.sync_seq;
+		mux->seqno_to_resubmit = atomic_read(&ring->fence_drv.sync_seq);
 		amdgpu_ring_mux_schedule_resubmit(mux);
 	}
 

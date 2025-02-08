@@ -884,7 +884,7 @@ static void vce_v3_0_emit_vm_flush(struct amdgpu_ring *ring,
 
 static void vce_v3_0_emit_pipeline_sync(struct amdgpu_ring *ring)
 {
-	uint32_t seq = ring->fence_drv.sync_seq;
+	uint32_t seq = atomic_read(&ring->fence_drv.sync_seq);
 	uint64_t addr = ring->fence_drv.gpu_addr;
 
 	amdgpu_ring_write(ring, VCE_CMD_WAIT_GE);

@@ -2933,7 +2933,7 @@ static void gfx_v9_4_3_ring_emit_fence(struct amdgpu_ring *ring, u64 addr,
 static void gfx_v9_4_3_ring_emit_pipeline_sync(struct amdgpu_ring *ring)
 {
 	int usepfp = (ring->funcs->type == AMDGPU_RING_TYPE_GFX);
-	uint32_t seq = ring->fence_drv.sync_seq;
+	uint32_t seq = atomic_read(&ring->fence_drv.sync_seq);
 	uint64_t addr = ring->fence_drv.gpu_addr;
 
 	gfx_v9_4_3_wait_reg_mem(ring, usepfp, 1, 0,

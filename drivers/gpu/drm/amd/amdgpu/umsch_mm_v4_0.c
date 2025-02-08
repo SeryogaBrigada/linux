@@ -308,7 +308,7 @@ static int umsch_mm_v4_0_set_hw_resources(struct amdgpu_umsch_mm *umsch)
 		IP_VERSION_MAJ_MIN_REV(amdgpu_ip_version(adev, VPE_HWIP, 0));
 
 	set_hw_resources.api_status.api_completion_fence_addr = umsch->ring.fence_drv.gpu_addr;
-	set_hw_resources.api_status.api_completion_fence_value = ++umsch->ring.fence_drv.sync_seq;
+	set_hw_resources.api_status.api_completion_fence_value = atomic_inc_return(&umsch->ring.fence_drv.sync_seq);
 
 	r = amdgpu_umsch_mm_submit_pkt(umsch, &set_hw_resources.max_dwords_in_api,
 				       API_FRAME_SIZE_IN_DWORDS);
@@ -358,7 +358,7 @@ static int umsch_mm_v4_0_add_queue(struct amdgpu_umsch_mm *umsch,
 	add_queue.collaboration_mode = adev->vpe.collaborate_mode ? 1 : 0;
 
 	add_queue.api_status.api_completion_fence_addr = umsch->ring.fence_drv.gpu_addr;
-	add_queue.api_status.api_completion_fence_value = ++umsch->ring.fence_drv.sync_seq;
+	add_queue.api_status.api_completion_fence_value = atomic_inc_return(&umsch->ring.fence_drv.sync_seq);
 
 	r = amdgpu_umsch_mm_submit_pkt(umsch, &add_queue.max_dwords_in_api,
 				       API_FRAME_SIZE_IN_DWORDS);
@@ -390,7 +390,7 @@ static int umsch_mm_v4_0_remove_queue(struct amdgpu_umsch_mm *umsch,
 	remove_queue.context_csa_addr = input_ptr->context_csa_addr;
 
 	remove_queue.api_status.api_completion_fence_addr = umsch->ring.fence_drv.gpu_addr;
-	remove_queue.api_status.api_completion_fence_value = ++umsch->ring.fence_drv.sync_seq;
+	remove_queue.api_status.api_completion_fence_value = atomic_inc_return(&umsch->ring.fence_drv.sync_seq);
 
 	r = amdgpu_umsch_mm_submit_pkt(umsch, &remove_queue.max_dwords_in_api,
 				       API_FRAME_SIZE_IN_DWORDS);

@@ -158,7 +158,7 @@ int amdgpu_fence_emit(struct amdgpu_ring *ring, struct dma_fence **f, struct amd
 		fence = &job->hw_fence;
 	}
 
-	seq = ++ring->fence_drv.sync_seq;
+	seq = atomic_inc_return(&ring->fence_drv.sync_seq);
 	if (job && job->job_run_counter) {
 		/* reinit seq for resubmitted jobs */
 		fence->seqno = seq;
@@ -229,7 +229,7 @@ int amdgpu_fence_emit_polling(struct amdgpu_ring *ring, uint32_t *s,
 	if (!s)
 		return -EINVAL;
 
-	seq = ++ring->fence_drv.sync_seq;
+	seq = atomic_inc_return(&ring->fence_drv.sync_seq);
 	r = amdgpu_fence_wait_polling(ring,
 				      seq - ring->fence_drv.num_fences_mask,
 				      timeout);
@@ -281,7 +281,7 @@ bool amdgpu_fence_process(struct amdgpu_ring *ring)
 	} while (atomic_cmpxchg(&drv->last_seq, last_seq, seq) != last_seq);
 
 	if (del_timer(&ring->fence_drv.fallback_timer) &&
-	    seq != ring->fence_drv.sync_seq)
+	    seq != atomic_read(&ring->fence_drv.sync_seq))
 		amdgpu_fence_schedule_fallback(ring);
 
 	if (unlikely(seq == last_seq))
@@ -339,7 +339,7 @@ static void amdgpu_fence_fallback(struct timer_list *t)
  */
 int amdgpu_fence_wait_empty(struct amdgpu_ring *ring)
 {
-	uint64_t seq = READ_ONCE(ring->fence_drv.sync_seq);
+	uint64_t seq = atomic_read(&ring->fence_drv.sync_seq);
 	struct dma_fence *fence, **ptr;
 	int r;
 
@@ -399,7 +399,7 @@ unsigned int amdgpu_fence_count_emitted(struct amdgpu_ring *ring)
 	 */
 	emitted = 0x100000000ull;
 	emitted -= atomic_read(&ring->fence_drv.last_seq);
-	emitted += READ_ONCE(ring->fence_drv.sync_seq);
+	emitted += atomic_read(&ring->fence_drv.sync_seq);
 	return lower_32_bits(emitted);
 }
 
@@ -417,7 +417,7 @@ u64 amdgpu_fence_last_unsignaled_time_us(struct amdgpu_ring *ring)
 	uint32_t last_seq, sync_seq;
 
 	last_seq = atomic_read(&ring->fence_drv.last_seq);
-	sync_seq = READ_ONCE(ring->fence_drv.sync_seq);
+	sync_seq = atomic_read(&ring->fence_drv.sync_seq);
 	if (last_seq == sync_seq)
 		return 0;
 
@@ -515,7 +515,7 @@ int amdgpu_fence_driver_init_ring(struct amdgpu_ring *ring)
 
 	ring->fence_drv.cpu_addr = NULL;
 	ring->fence_drv.gpu_addr = 0;
-	ring->fence_drv.sync_seq = 0;
+	atomic_set(&ring->fence_drv.sync_seq, 0);
 	atomic_set(&ring->fence_drv.last_seq, 0);
 	ring->fence_drv.initialized = false;
 
@@ -760,7 +760,7 @@ void amdgpu_fence_driver_set_error(struct amdgpu_ring *ring, int error)
 void amdgpu_fence_driver_force_completion(struct amdgpu_ring *ring)
 {
 	amdgpu_fence_driver_set_error(ring, -ECANCELED);
-	amdgpu_fence_write(ring, ring->fence_drv.sync_seq);
+	amdgpu_fence_write(ring, atomic_read(&ring->fence_drv.sync_seq));
 	amdgpu_fence_process(ring);
 }
 
@@ -909,7 +909,7 @@ static int amdgpu_debugfs_fence_info_show(struct seq_file *m, void *unused)
 		seq_printf(m, "Last signaled fence          0x%08x\n",
 			   atomic_read(&ring->fence_drv.last_seq));
 		seq_printf(m, "Last emitted                 0x%08x\n",
-			   ring->fence_drv.sync_seq);
+			   atomic_read(&ring->fence_drv.sync_seq));
 
 		if (ring->funcs->type == AMDGPU_RING_TYPE_GFX ||
 		    ring->funcs->type == AMDGPU_RING_TYPE_SDMA) {

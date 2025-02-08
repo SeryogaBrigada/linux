@@ -122,7 +122,7 @@ static enum drm_gpu_sched_stat amdgpu_job_timedout(struct drm_sched_job *s_job)
 
 	dev_err(adev->dev, "ring %s timeout, signaled seq=%u, emitted seq=%u\n",
 		job->base.sched->name, atomic_read(&ring->fence_drv.last_seq),
-		ring->fence_drv.sync_seq);
+		atomic_read(&ring->fence_drv.sync_seq));
 
 	ti = amdgpu_vm_get_task_info_pasid(ring->adev, job->pasid);
 	if (ti) {

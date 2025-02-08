@@ -3097,7 +3097,7 @@ static int gfx_v7_0_cp_resume(struct amdgpu_device *adev)
 static void gfx_v7_0_ring_emit_pipeline_sync(struct amdgpu_ring *ring)
 {
 	int usepfp = (ring->funcs->type == AMDGPU_RING_TYPE_GFX);
-	uint32_t seq = ring->fence_drv.sync_seq;
+	uint32_t seq = atomic_read(&ring->fence_drv.sync_seq);
 	uint64_t addr = ring->fence_drv.gpu_addr;
 
 	amdgpu_ring_write(ring, PACKET3(PACKET3_WAIT_REG_MEM, 5));
@@ -4983,7 +4983,8 @@ static int gfx_v7_0_reset_kgq(struct amdgpu_ring *ring, unsigned int vmid)
 	if (amdgpu_ring_alloc(ring, 7 + 12 + 5))
 		return -ENOMEM;
 	gfx_v7_0_ring_emit_fence_gfx(ring, ring->fence_drv.gpu_addr,
-				     ring->fence_drv.sync_seq, AMDGPU_FENCE_FLAG_EXEC);
+				     atomic_read(&ring->fence_drv.sync_seq),
+				     AMDGPU_FENCE_FLAG_EXEC);
 	gfx_v7_0_ring_emit_reg_wait(ring, mmCP_VMID_RESET, 0, 0xffff);
 	gfx_v7_0_ring_emit_wreg(ring, mmCP_VMID_RESET, 0);
 

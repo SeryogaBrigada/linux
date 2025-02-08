@@ -540,7 +540,7 @@ static void vpe_ring_emit_fence(struct amdgpu_ring *ring, uint64_t addr,
 
 static void vpe_ring_emit_pipeline_sync(struct amdgpu_ring *ring)
 {
-	uint32_t seq = ring->fence_drv.sync_seq;
+	uint32_t seq = atomic_read(&ring->fence_drv.sync_seq);
 	uint64_t addr = ring->fence_drv.gpu_addr;
 
 	vpe_ring_emit_pred_exec(ring, 0, 6);

@@ -197,7 +197,7 @@ static int mes_v11_0_submit_pkt_and_poll_completion(struct amdgpu_mes *mes,
 	if (r)
 		goto error_unlock_free;
 
-	seq = ++ring->fence_drv.sync_seq;
+	seq = atomic_inc_return(&ring->fence_drv.sync_seq);
 	r = amdgpu_fence_wait_polling(ring,
 				      seq - ring->fence_drv.num_fences_mask,
 				      timeout);

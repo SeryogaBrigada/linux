@@ -508,10 +508,11 @@ int amdgpu_umsch_mm_query_fence(struct amdgpu_umsch_mm *umsch)
 	struct amdgpu_device *adev = ring->adev;
 	int r;
 
-	r = amdgpu_fence_wait_polling(ring, ring->fence_drv.sync_seq, adev->usec_timeout);
+	uint32_t wait_seq = atomic_read(&ring->fence_drv.sync_seq);
+	r = amdgpu_fence_wait_polling(ring, wait_seq, adev->usec_timeout);
 	if (r < 1) {
 		dev_err(adev->dev, "ring umsch timeout, emitted fence %u\n",
-			ring->fence_drv.sync_seq);
+			wait_seq);
 		return -ETIMEDOUT;
 	}
 
