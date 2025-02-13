@@ -5658,6 +5658,25 @@ static void gfx_v9_0_ring_set_wptr_compute(struct amdgpu_ring *ring)
 	}
 }
 
+static void gfx_v9_0_ring_set_wptr_compute_with_pg(struct amdgpu_ring *ring)
+{
+	/*
+	 * PG state change workaround is necessary for Raven Compute
+	 * rings before ringing doorbell to prevent GPU freeze
+	 */
+	struct amdgpu_device *adev = ring->adev;
+	bool need_pg_change =
+			(IP_VERSION(9, 1, 0) == amdgpu_ip_version(adev, GC_HWIP, 0));
+
+	if (need_pg_change)
+		gfx_v9_0_set_powergating_state(adev, AMD_PG_STATE_UNGATE);
+
+	gfx_v9_0_ring_set_wptr_compute(ring);
+
+	if (need_pg_change)
+		gfx_v9_0_set_powergating_state(adev, AMD_PG_STATE_GATE);
+}
+
 static void gfx_v9_0_ring_emit_fence_kiq(struct amdgpu_ring *ring, u64 addr,
 					 u64 seq, unsigned int flags)
 {
@@ -7583,7 +7602,7 @@ static const struct amdgpu_ring_funcs gfx_v9_0_ring_funcs_compute = {
 	.support_64bit_ptrs = true,
 	.get_rptr = gfx_v9_0_ring_get_rptr_compute,
 	.get_wptr = gfx_v9_0_ring_get_wptr_compute,
-	.set_wptr = gfx_v9_0_ring_set_wptr_compute,
+	.set_wptr = gfx_v9_0_ring_set_wptr_compute_with_pg,
 	.emit_frame_size =
 		20 + /* gfx_v9_0_ring_emit_gds_switch */
 		7 + /* gfx_v9_0_ring_emit_hdp_flush */
