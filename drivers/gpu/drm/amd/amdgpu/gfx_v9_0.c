@@ -5647,7 +5647,17 @@ static u64 gfx_v9_0_ring_get_wptr_compute(struct amdgpu_ring *ring)
 
 static void gfx_v9_0_ring_set_wptr_compute(struct amdgpu_ring *ring)
 {
+	/*
+	 *  PG state change workaround is necessary for Raven Compute
+	 *  rings before ringing doorbell to prevent GPU freeze
+	 */
 	struct amdgpu_device *adev = ring->adev;
+	bool need_pg_change =
+		(IP_VERSION(9, 1, 0) == amdgpu_ip_version(adev, GC_HWIP, 0)) &&
+		(AMDGPU_RING_TYPE_COMPUTE == ring->funcs->type);
+
+	if (need_pg_change)
+		gfx_v9_0_set_powergating_state(adev, AMD_PG_STATE_UNGATE);
 
 	/* XXX check if swapping is necessary on BE */
 	if (ring->use_doorbell) {
@@ -5656,6 +5666,9 @@ static void gfx_v9_0_ring_set_wptr_compute(struct amdgpu_ring *ring)
 	} else{
 		BUG(); /* only DOORBELL method supported on gfx9 now */
 	}
+
+	if (need_pg_change)
+		gfx_v9_0_set_powergating_state(adev, AMD_PG_STATE_GATE);
 }
 
 static void gfx_v9_0_ring_emit_fence_kiq(struct amdgpu_ring *ring, u64 addr,
