@@ -771,122 +771,111 @@ int amdgpu_gfx_enable_kgq(struct amdgpu_device *adev, int xcc_id)
 	return r;
 }
 
-/* amdgpu_gfx_off_ctrl - Handle gfx off feature enable/disable
+/* amdgpu_gfx_off_ctrl_internal - Handle gfx off feature enable/disable
  *
  * @adev: amdgpu_device pointer
  * @bool enable true: enable gfx off feature, false: disable gfx off feature
+ * @bool delayed: true - use GFX_OFF_DELAY_ENABLE for gfx_off_delay_work,
+ *                false - don't use delay for gfx_off_delay_work
  *
  * 1. gfx off feature will be enabled by gfx ip after gfx cg gp enabled.
  * 2. other client can send request to disable gfx off feature, the request should be honored.
  * 3. other client can cancel their request of disable gfx off feature
  * 4. other client should not send request to enable gfx off feature before disable gfx off feature.
  */
+void amdgpu_gfx_off_ctrl_internal(struct amdgpu_device *adev, bool enable,
+				  bool delayed);
 
-void amdgpu_gfx_off_ctrl(struct amdgpu_device *adev, bool enable)
+void amdgpu_gfx_off_ctrl_internal(struct amdgpu_device *adev, bool enable,
+				  bool delayed)
 {
-	unsigned long delay = GFX_OFF_DELAY_ENABLE;
-
 	if (!(adev->pm.pp_feature & PP_GFXOFF_MASK))
 		return;
 
-	mutex_lock(&adev->gfx.gfx_off_mutex);
+	bool process;
+	smp_mb__before_atomic();
+	process = enable ? (atomic_read(&adev->gfx.gfx_off_req_count) > 0) &&
+				   atomic_dec_and_test(
+					   &adev->gfx.gfx_off_req_count) :
+			   !atomic_fetch_inc(&adev->gfx.gfx_off_req_count);
+	smp_mb__after_atomic();
+
+	if (!process)
+		return;
 
 	if (enable) {
-		/* If the count is already 0, it means there's an imbalance bug somewhere.
-		 * Note that the bug may be in a different caller than the one which triggers the
-		 * WARN_ON_ONCE.
-		 */
-		if (WARN_ON_ONCE(adev->gfx.gfx_off_req_count == 0))
-			goto unlock;
-
-		adev->gfx.gfx_off_req_count--;
-
-		if (adev->gfx.gfx_off_req_count == 0 &&
-		    !adev->gfx.gfx_off_state) {
-			/* If going to s2idle, no need to wait */
-			if (adev->in_s0ix) {
-				if (!amdgpu_dpm_set_powergating_by_smu(adev,
-						AMD_IP_BLOCK_TYPE_GFX, true))
-					adev->gfx.gfx_off_state = true;
-			} else {
-				schedule_delayed_work(&adev->gfx.gfx_off_delay_work,
-					      delay);
-			}
+		/* If going to s2idle, no need to wait */
+		if (adev->in_s0ix) {
+			amdgpu_dpm_set_powergating_by_smu(
+				adev, AMD_IP_BLOCK_TYPE_GFX, true);
+		} else {
+			if (0 == atomic_cmpxchg(&adev->gfx.gfx_off_work_planned,
+						0, 1))
+				schedule_delayed_work(
+					&adev->gfx.gfx_off_delay_work,
+					delayed ? GFX_OFF_DELAY_ENABLE :
+						  GFX_OFF_NO_DELAY);
 		}
 	} else {
-		if (adev->gfx.gfx_off_req_count == 0) {
+		if (1 == atomic_cmpxchg(&adev->gfx.gfx_off_work_planned, 1, 0))
 			cancel_delayed_work_sync(&adev->gfx.gfx_off_delay_work);
 
-			if (adev->gfx.gfx_off_state &&
-			    !amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_GFX, false)) {
-				adev->gfx.gfx_off_state = false;
-
-				if (adev->gfx.funcs->init_spm_golden) {
-					dev_dbg(adev->dev,
-						"GFXOFF is disabled, re-init SPM golden settings\n");
-					amdgpu_gfx_init_spm_golden(adev);
-				}
+		bool gfx_off_enabled =
+			atomic_read(
+				&adev->pm.pwr_state[AMD_IP_BLOCK_TYPE_GFX]) ==
+			POWER_STATE_OFF;
+		if (gfx_off_enabled &&
+		    !amdgpu_dpm_set_powergating_by_smu(
+			    adev, AMD_IP_BLOCK_TYPE_GFX, false)) {
+			if (adev->gfx.funcs->init_spm_golden) {
+				dev_dbg(adev->dev,
+					"GFXOFF is disabled, re-init SPM golden settings\n");
+				amdgpu_gfx_init_spm_golden(adev);
 			}
 		}
-
-		adev->gfx.gfx_off_req_count++;
 	}
+}
 
-unlock:
-	mutex_unlock(&adev->gfx.gfx_off_mutex);
+/*
+ * amdgpu_gfx_off_ctrl_immediate - Handle GFXOFF feature with no delay
+ *
+ * @adev: amdgpu_device pointer
+ * @bool enable true: enable gfx off feature, false: disable gfx off feature
+ */
+void amdgpu_gfx_off_ctrl_immediate(struct amdgpu_device *adev, bool enable)
+{
+	amdgpu_gfx_off_ctrl_internal(adev, enable, false);
+}
+
+/*
+ * amdgpu_gfx_off_ctrl - Handle GFXOFF feature turn on delay
+ *
+ * @adev: amdgpu_device pointer
+ * @bool enable true: enable gfx off feature, false: disable gfx off feature
+ */
+void amdgpu_gfx_off_ctrl(struct amdgpu_device *adev, bool enable)
+{
+	amdgpu_gfx_off_ctrl_internal(adev, enable, true);
 }
 
 int amdgpu_set_gfx_off_residency(struct amdgpu_device *adev, bool value)
 {
-	int r = 0;
-
-	mutex_lock(&adev->gfx.gfx_off_mutex);
-
-	r = amdgpu_dpm_set_residency_gfxoff(adev, value);
-
-	mutex_unlock(&adev->gfx.gfx_off_mutex);
-
-	return r;
+	return amdgpu_dpm_set_residency_gfxoff(adev, value);
 }
 
 int amdgpu_get_gfx_off_residency(struct amdgpu_device *adev, u32 *value)
 {
-	int r = 0;
-
-	mutex_lock(&adev->gfx.gfx_off_mutex);
-
-	r = amdgpu_dpm_get_residency_gfxoff(adev, value);
-
-	mutex_unlock(&adev->gfx.gfx_off_mutex);
-
-	return r;
+	return amdgpu_dpm_get_residency_gfxoff(adev, value);
 }
 
 int amdgpu_get_gfx_off_entrycount(struct amdgpu_device *adev, u64 *value)
 {
-	int r = 0;
-
-	mutex_lock(&adev->gfx.gfx_off_mutex);
-
-	r = amdgpu_dpm_get_entrycount_gfxoff(adev, value);
-
-	mutex_unlock(&adev->gfx.gfx_off_mutex);
-
-	return r;
+	return amdgpu_dpm_get_entrycount_gfxoff(adev, value);
 }
 
 int amdgpu_get_gfx_off_status(struct amdgpu_device *adev, uint32_t *value)
 {
-
-	int r = 0;
-
-	mutex_lock(&adev->gfx.gfx_off_mutex);
-
-	r = amdgpu_dpm_get_status_gfxoff(adev, value);
-
-	mutex_unlock(&adev->gfx.gfx_off_mutex);
-
-	return r;
+	return amdgpu_dpm_get_status_gfxoff(adev, value);
 }
 
 int amdgpu_gfx_ras_late_init(struct amdgpu_device *adev, struct ras_common_if *ras_block)

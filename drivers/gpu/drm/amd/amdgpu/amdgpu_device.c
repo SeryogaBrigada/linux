@@ -3475,14 +3475,12 @@ static void amdgpu_device_delayed_init_work_handler(struct work_struct *work)
 
 static void amdgpu_device_delay_enable_gfx_off(struct work_struct *work)
 {
-	struct amdgpu_device *adev =
-		container_of(work, struct amdgpu_device, gfx.gfx_off_delay_work.work);
+	struct amdgpu_device *adev = container_of(work, struct amdgpu_device,
+						  gfx.gfx_off_delay_work.work);
 
-	WARN_ON_ONCE(adev->gfx.gfx_off_state);
-	WARN_ON_ONCE(adev->gfx.gfx_off_req_count);
-
-	if (!amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_GFX, true))
-		adev->gfx.gfx_off_state = true;
+	if (!atomic_read(&adev->gfx.gfx_off_req_count))
+		amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_GFX,
+						  true);
 }
 
 /**
@@ -4207,7 +4205,6 @@ int amdgpu_device_init(struct amdgpu_device *adev,
 	mutex_init(&adev->gfx.gpu_clock_mutex);
 	mutex_init(&adev->srbm_mutex);
 	mutex_init(&adev->gfx.pipe_reserve_mutex);
-	mutex_init(&adev->gfx.gfx_off_mutex);
 	mutex_init(&adev->gfx.partition_mutex);
 	mutex_init(&adev->grbm_idx_mutex);
 	mutex_init(&adev->mn_lock);
@@ -4268,7 +4265,7 @@ int amdgpu_device_init(struct amdgpu_device *adev,
 
 	INIT_WORK(&adev->xgmi_reset_work, amdgpu_device_xgmi_reset_func);
 
-	adev->gfx.gfx_off_req_count = 1;
+	atomic_set(&adev->gfx.gfx_off_req_count, 1);
 	adev->gfx.gfx_off_residency = 0;
 	adev->gfx.gfx_off_entrycount = 0;
 	adev->pm.ac_power = power_supply_is_system_supplied() > 0;

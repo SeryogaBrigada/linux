@@ -428,12 +428,11 @@ struct amdgpu_gfx {
 	uint32_t 			compute_supported_reset;
 
 	/* gfx off */
-	bool                            gfx_off_state;      /* true: enabled, false: disabled */
-	struct mutex                    gfx_off_mutex;      /* mutex to change gfxoff state */
-	uint32_t                        gfx_off_req_count;  /* default 1, enable gfx off: dec 1, disable gfx off: add 1 */
-	struct delayed_work             gfx_off_delay_work; /* async work to set gfx block off */
-	uint32_t                        gfx_off_residency;  /* last logged residency */
-	uint64_t                        gfx_off_entrycount; /* count of times GPU has get into GFXOFF state */
+	atomic_t			gfx_off_work_planned; /* state of delayed work, 1: enabled, 0: disabled */
+	atomic_t			gfx_off_req_count;    /* default 1, enable gfx off: dec 1, disable gfx off: add 1 */
+	struct delayed_work		gfx_off_delay_work;   /* async work to set gfx block off */
+	uint32_t			gfx_off_residency;    /* last logged residency */
+	uint64_t			gfx_off_entrycount;   /* count of times GPU has get into GFXOFF state */
 
 	/* pipe reservation */
 	struct mutex			pipe_reserve_mutex;
@@ -546,6 +545,7 @@ int amdgpu_gfx_me_queue_to_bit(struct amdgpu_device *adev, int me,
 			       int pipe, int queue);
 bool amdgpu_gfx_is_me_queue_enabled(struct amdgpu_device *adev, int me,
 				    int pipe, int queue);
+void amdgpu_gfx_off_ctrl_immediate(struct amdgpu_device *adev, bool enable);
 void amdgpu_gfx_off_ctrl(struct amdgpu_device *adev, bool enable);
 int amdgpu_get_gfx_off_status(struct amdgpu_device *adev, uint32_t *value);
 int amdgpu_gfx_ras_late_init(struct amdgpu_device *adev, struct ras_common_if *ras_block);
