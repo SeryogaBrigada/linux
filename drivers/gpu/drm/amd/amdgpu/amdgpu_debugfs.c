@@ -1446,7 +1446,10 @@ static ssize_t amdgpu_debugfs_gfxoff_read(struct file *f, char __user *buf,
 	}
 
 	while (size) {
-		u32 value = adev->gfx.gfx_off_state;
+		u32 value =
+			atomic_read(
+				&adev->pm.pwr_state[AMD_IP_BLOCK_TYPE_GFX]) ==
+			POWER_STATE_OFF;
 
 		r = put_user(value, (u32 *)buf);
 		if (r)
