@@ -5621,7 +5621,27 @@ static u64 gfx_v11_0_ring_get_wptr_compute(struct amdgpu_ring *ring)
 
 static void gfx_v11_0_ring_set_wptr_compute(struct amdgpu_ring *ring)
 {
+	/*
+	 *  PG state change workaround is necessary for GFX11 Compute
+	 *  rings before ringing doorbell to prevent GPU freeze
+	 */
 	struct amdgpu_device *adev = ring->adev;
+	bool need_gfxoff_workaround = false;
+
+	switch (amdgpu_ip_version(adev, GC_HWIP, 0)) {
+	case IP_VERSION(11, 0, 1):
+	case IP_VERSION(11, 0, 2):
+	case IP_VERSION(11, 0, 3):
+	case IP_VERSION(11, 0, 4):
+		if (AMDGPU_RING_TYPE_COMPUTE == ring->funcs->type)
+			need_gfxoff_workaround = true;
+		break;
+	default:
+		break;
+	}
+
+	if (need_gfxoff_workaround)
+		gfx_v11_0_set_powergating_state(adev, AMD_PG_STATE_UNGATE);
 
 	/* XXX check if swapping is necessary on BE */
 	if (ring->use_doorbell) {
@@ -5631,6 +5651,9 @@ static void gfx_v11_0_ring_set_wptr_compute(struct amdgpu_ring *ring)
 	} else {
 		BUG(); /* only DOORBELL method supported on gfx11 now */
 	}
+
+	if (need_gfxoff_workaround)
+		gfx_v11_0_set_powergating_state(adev, AMD_PG_STATE_GATE);
 }
 
 static void gfx_v11_0_ring_emit_hdp_flush(struct amdgpu_ring *ring)
