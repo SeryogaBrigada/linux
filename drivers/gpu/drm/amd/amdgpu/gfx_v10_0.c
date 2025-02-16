@@ -8515,7 +8515,28 @@ static u64 gfx_v10_0_ring_get_wptr_compute(struct amdgpu_ring *ring)
 
 static void gfx_v10_0_ring_set_wptr_compute(struct amdgpu_ring *ring)
 {
+	/*
+	 *  PG state change workaround is necessary for GFX10 Compute
+	 *  rings before ringing doorbell to prevent GPU freeze
+	 */
 	struct amdgpu_device *adev = ring->adev;
+	bool need_gfxoff_workaround = false;
+
+	switch (amdgpu_ip_version(adev, GC_HWIP, 0)) {
+	case IP_VERSION(10, 1, 10):
+	case IP_VERSION(10, 1, 1):
+	case IP_VERSION(10, 1, 2):
+	case IP_VERSION(10, 1, 3):
+	case IP_VERSION(10, 1, 4):
+		if (AMDGPU_RING_TYPE_COMPUTE == ring->funcs->type)
+			need_gfxoff_workaround = true;
+		break;
+	default:
+		break;
+	}
+
+	if (need_gfxoff_workaround)
+		gfx_v10_0_set_powergating_state(adev, AMD_PG_STATE_UNGATE);
 
 	if (ring->use_doorbell) {
 		atomic64_set((atomic64_t *)ring->wptr_cpu_addr,
@@ -8524,6 +8545,9 @@ static void gfx_v10_0_ring_set_wptr_compute(struct amdgpu_ring *ring)
 	} else {
 		BUG(); /* only DOORBELL method supported on gfx10 now */
 	}
+
+	if (need_gfxoff_workaround)
+		gfx_v10_0_set_powergating_state(adev, AMD_PG_STATE_GATE);
 }
 
 static void gfx_v10_0_ring_emit_hdp_flush(struct amdgpu_ring *ring)
