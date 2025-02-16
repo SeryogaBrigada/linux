@@ -4284,7 +4284,7 @@ static uint64_t gfx_v9_0_get_gpu_clock_counter(struct amdgpu_device *adev)
 		clock = clock_lo | (clock_hi << 32ULL);
 		break;
 	default:
-		amdgpu_gfx_off_ctrl(adev, false);
+		amdgpu_gfx_off_ctrl_immediate(adev, false);
 		mutex_lock(&adev->gfx.gpu_clock_mutex);
 		if (amdgpu_ip_version(adev, GC_HWIP, 0) ==
 			    IP_VERSION(9, 0, 1) &&
@@ -4296,7 +4296,7 @@ static uint64_t gfx_v9_0_get_gpu_clock_counter(struct amdgpu_device *adev)
 				((uint64_t)RREG32_SOC15(GC, 0, mmRLC_GPU_CLOCK_COUNT_MSB) << 32ULL);
 		}
 		mutex_unlock(&adev->gfx.gpu_clock_mutex);
-		amdgpu_gfx_off_ctrl(adev, true);
+		amdgpu_gfx_off_ctrl_immediate(adev, true);
 		break;
 	}
 	return clock;
@@ -5243,7 +5243,7 @@ static int gfx_v9_0_set_powergating_state(void *handle,
 	case IP_VERSION(9, 1, 0):
 	case IP_VERSION(9, 3, 0):
 		if (!enable)
-			amdgpu_gfx_off_ctrl(adev, false);
+			amdgpu_gfx_off_ctrl_immediate(adev, false);
 
 		if (adev->pg_flags & AMD_PG_SUPPORT_RLC_SMU_HS) {
 			gfx_v9_0_enable_sck_slow_down_on_power_up(adev, true);
@@ -5265,10 +5265,10 @@ static int gfx_v9_0_set_powergating_state(void *handle,
 		gfx_v9_0_update_gfx_mg_power_gating(adev, enable);
 
 		if (enable)
-			amdgpu_gfx_off_ctrl(adev, true);
+			amdgpu_gfx_off_ctrl_immediate(adev, true);
 		break;
 	case IP_VERSION(9, 2, 1):
-		amdgpu_gfx_off_ctrl(adev, enable);
+		amdgpu_gfx_off_ctrl_immediate(adev, enable);
 		break;
 	default:
 		break;

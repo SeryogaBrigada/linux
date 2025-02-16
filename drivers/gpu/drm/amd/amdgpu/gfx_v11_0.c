@@ -5471,7 +5471,7 @@ static int gfx_v11_0_set_powergating_state(void *handle,
 	case IP_VERSION(11, 0, 0):
 	case IP_VERSION(11, 0, 2):
 	case IP_VERSION(11, 0, 3):
-		amdgpu_gfx_off_ctrl(adev, enable);
+		amdgpu_gfx_off_ctrl_immediate(adev, enable);
 		break;
 	case IP_VERSION(11, 0, 1):
 	case IP_VERSION(11, 0, 4):
@@ -5479,12 +5479,12 @@ static int gfx_v11_0_set_powergating_state(void *handle,
 	case IP_VERSION(11, 5, 1):
 	case IP_VERSION(11, 5, 2):
 		if (!enable)
-			amdgpu_gfx_off_ctrl(adev, false);
+			amdgpu_gfx_off_ctrl_immediate(adev, false);
 
 		gfx_v11_cntl_pg(adev, enable);
 
 		if (enable)
-			amdgpu_gfx_off_ctrl(adev, true);
+			amdgpu_gfx_off_ctrl_immediate(adev, true);
 
 		break;
 	default:
