@@ -349,13 +349,8 @@ static int smu10_disable_gfx_off(struct pp_hwmgr *hwmgr)
 {
 	struct amdgpu_device *adev = hwmgr->adev;
 
-	if (adev->pm.pp_feature & PP_GFXOFF_MASK) {
+	if (adev->pm.pp_feature & PP_GFXOFF_MASK)
 		smum_send_msg_to_smc(hwmgr, PPSMC_MSG_DisableGfxOff, NULL);
-
-		/* confirm gfx is back to "on" state */
-		while (!smu10_is_gfx_on(hwmgr))
-			msleep(1);
-	}
 
 	return 0;
 }
