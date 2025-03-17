@@ -430,7 +430,10 @@ struct amdgpu_gfx {
 	/* gfx off */
 	bool                            gfx_off_state;      /* true: enabled, false: disabled */
 	struct mutex                    gfx_off_mutex;      /* mutex to change gfxoff state */
+	uint64_t			gfx_off_timestamp;  /* gfxoff enable call timestamp */
+	uint32_t			gfx_off_use_delay;  /* flag to choose the delay range */
 	uint32_t                        gfx_off_req_count;  /* default 1, enable gfx off: dec 1, disable gfx off: add 1 */
+	uint32_t			gfx_off_counter;    /* count of gfxoff enable calls */
 	struct delayed_work             gfx_off_delay_work; /* async work to set gfx block off */
 	uint32_t                        gfx_off_residency;  /* last logged residency */
 	uint64_t                        gfx_off_entrycount; /* count of times GPU has get into GFXOFF state */

@@ -781,55 +781,87 @@ int amdgpu_gfx_enable_kgq(struct amdgpu_device *adev, int xcc_id)
  * 3. other client can cancel their request of disable gfx off feature
  * 4. other client should not send request to enable gfx off feature before disable gfx off feature.
  */
-
 void amdgpu_gfx_off_ctrl(struct amdgpu_device *adev, bool enable)
 {
-	unsigned long delay = GFX_OFF_DELAY_ENABLE;
-
 	if (!(adev->pm.pp_feature & PP_GFXOFF_MASK))
 		return;
 
 	mutex_lock(&adev->gfx.gfx_off_mutex);
 
 	if (enable) {
-		/* If the count is already 0, it means there's an imbalance bug somewhere.
-		 * Note that the bug may be in a different caller than the one which triggers the
-		 * WARN_ON_ONCE.
-		 */
-		if (WARN_ON_ONCE(adev->gfx.gfx_off_req_count == 0))
+		/* This case covers multiple calls from parallel threads */
+		if (!adev->gfx.gfx_off_req_count)
 			goto unlock;
 
-		adev->gfx.gfx_off_req_count--;
+		/* Process only if req_count == 0 and GFXOFF is disabled */
+		if (--adev->gfx.gfx_off_req_count || adev->gfx.gfx_off_state)
+			goto unlock;
 
-		if (adev->gfx.gfx_off_req_count == 0 &&
-		    !adev->gfx.gfx_off_state) {
-			/* If going to s2idle, no need to wait */
-			if (adev->in_s0ix) {
-				if (!amdgpu_dpm_set_powergating_by_smu(adev,
-						AMD_IP_BLOCK_TYPE_GFX, true))
-					adev->gfx.gfx_off_state = true;
+		/* If going to s2idle, no need to wait */
+		if (adev->in_s0ix) {
+			if (!amdgpu_dpm_set_powergating_by_smu(
+				    adev, AMD_IP_BLOCK_TYPE_GFX, true))
+				adev->gfx.gfx_off_state = true;
+
+			/* Reset delay flag */
+			adev->gfx.gfx_off_use_delay = 0;
+			goto unlock;
+		}
+
+		++adev->gfx.gfx_off_counter;
+
+		uint64_t now = get_jiffies_64();
+		uint64_t delta =
+			jiffies_to_msecs(now - adev->gfx.gfx_off_timestamp);
+
+		if (delta >= 1000u) {
+			adev->gfx.gfx_off_timestamp = now;
+			uint64_t calls_per_sec =
+				1000 * adev->gfx.gfx_off_counter / delta;
+			adev->gfx.gfx_off_counter = 0;
+
+			if (calls_per_sec < 15u) {
+				/* System idle */
+				adev->gfx.gfx_off_use_delay = 0;
+			} else if (calls_per_sec < 25u) {
+				/* Light load */
+				adev->gfx.gfx_off_use_delay = 1;
 			} else {
-				schedule_delayed_work(&adev->gfx.gfx_off_delay_work,
-					      delay);
+				/* Heavy load */
+				adev->gfx.gfx_off_use_delay = 2;
 			}
 		}
+
+		/* Don't schedule gfxoff under heavy load */
+		if (adev->gfx.gfx_off_use_delay == 2)
+			goto unlock;
+
+		schedule_delayed_work(&adev->gfx.gfx_off_delay_work,
+				      adev->gfx.gfx_off_use_delay ?
+					      GFX_OFF_DELAY_ENABLE :
+					      GFX_OFF_NO_DELAY);
 	} else {
-		if (adev->gfx.gfx_off_req_count == 0) {
-			cancel_delayed_work_sync(&adev->gfx.gfx_off_delay_work);
+		/* GFXOFF was enabled when req_count == 0 */
+		if (++adev->gfx.gfx_off_req_count != 1)
+			goto unlock;
 
-			if (adev->gfx.gfx_off_state &&
-			    !amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_GFX, false)) {
-				adev->gfx.gfx_off_state = false;
+		/* Nothing to do if the work wasn't scheduled */
+		if (adev->gfx.gfx_off_use_delay == 2)
+			goto unlock;
 
-				if (adev->gfx.funcs->init_spm_golden) {
-					dev_dbg(adev->dev,
-						"GFXOFF is disabled, re-init SPM golden settings\n");
-					amdgpu_gfx_init_spm_golden(adev);
-				}
+		cancel_delayed_work_sync(&adev->gfx.gfx_off_delay_work);
+
+		if (adev->gfx.gfx_off_state &&
+		    !amdgpu_dpm_set_powergating_by_smu(
+			    adev, AMD_IP_BLOCK_TYPE_GFX, false)) {
+			adev->gfx.gfx_off_state = false;
+
+			if (adev->gfx.funcs->init_spm_golden) {
+				dev_dbg(adev->dev,
+					"GFXOFF is disabled, re-init SPM golden settings\n");
+				amdgpu_gfx_init_spm_golden(adev);
 			}
 		}
-
-		adev->gfx.gfx_off_req_count++;
 	}
 
 unlock:
